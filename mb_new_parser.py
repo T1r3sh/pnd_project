@@ -116,6 +116,37 @@ class MOEX_news_scraper:
         self.driver.close()
 
 
+def extract_link_info(
+    url: str,
+    headers: dict = {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582"
+    },
+):
+    """extract all neccessary info from news
+
+    :param url: url -> news page
+    :type url: str
+    :param headers: request header, important for moex, defaults to { 'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582" }
+    :type headers: _type_, optional
+    :return: url, datetime, table info, and body text
+    :rtype: dict
+    """
+    data = {}
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, "html.parser")
+    html_table = soup.find("table", class_="table1")
+    table_columns = [header.text for header in html_table.find_all("th")]
+    table_data = [
+        {table_columns[i]: cell.text for i, cell in enumerate(row.find_all("td"))}
+        for row in html_table.find_all("tr")
+    ]
+    data["url"] = url
+    data["datetime"] = soup.find("div", class_="news_date").text
+    data["table_data"] = table_data
+    data["body"] = soup.find("div", class_="news_text").text
+    return data
+
+
 def save_as_csv(filename: str, data: list[dict]):
     with open(filename, mode="w", encoding="UTF-8") as csvfile:
         writter = csv.DictWriter(csvfile, data[0].keys())
