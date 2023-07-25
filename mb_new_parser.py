@@ -2,6 +2,7 @@ import requests
 import re
 import time
 import csv
+import pandas as pd
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -135,16 +136,44 @@ def extract_link_info(
     response = requests.get(url, headers=headers)
     soup = BeautifulSoup(response.text, "html.parser")
     html_table = soup.find("table", class_="table1")
-    table_columns = [header.text for header in html_table.find_all("th")]
-    table_data = [
-        {table_columns[i]: cell.text for i, cell in enumerate(row.find_all("td"))}
-        for row in html_table.find_all("tr")
-    ]
+    if html_table:
+        # some tables broken.
+        # there are several table there column names not th tag but tr
+        table_all_rows = html_table.find_all("tr")
+        if html_table.find_all("th"):
+            table_headers_html = html_table.find_all("th")
+        else:
+            table_headers_html = table_all_rows[0].find_all("td")
+            table_all_rows = table_all_rows[1:]
+
+        table_columns = [header.text for header in table_headers_html]
+        table_data = [
+            {table_columns[i]: cell.text for i, cell in enumerate(row.find_all("td"))}
+            for row in table_all_rows
+        ]
+    else:
+        table_data = None
     data["url"] = url
     data["datetime"] = soup.find("div", class_="news_date").text
     data["table_data"] = table_data
     data["body"] = soup.find("div", class_="news_text").text
     return data
+
+
+def get_all_and_merge(df: pd.DataFrame):
+    """
+    Get all base info and connects it with
+    info in every link
+
+    :param df: dataframe with links
+    :type df: pd.DataFrame
+    """
+    data = []
+    for url in df.url:
+        data.append(extract_link_info(url))
+    adv_news_info_df = pd.DataFrame(data)
+    full_news_info_df = pd.merge(df, adv_news_info_df, on="url")
+    full_news_info_df.to_csv("moex_value_deviation_dataset.csv")
 
 
 def save_as_csv(filename: str, data: list[dict]):
