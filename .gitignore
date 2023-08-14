@@ -1,2 +1,5 @@
 *.csv
 *.ipynb
+*.log
+datasets/pisaypopa
+datasets/merged_full_df.json
