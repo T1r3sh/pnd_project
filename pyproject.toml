@@ -1,0 +1,20 @@
+[project]
+name = "pnd_moex"
+version = "0.0.1"
+description = "Simple project for moex pump and dump cases"
+readme = "README.md"
+dynamic = ["dependencies"]
+
+    
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.distutils.bdist_wheel]
+universal = true
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}

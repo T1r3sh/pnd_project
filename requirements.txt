@@ -1,0 +1,14 @@
+adtk
+bs4
+numpy
+pandas
+plotly
+pyarrow
+scipy
+seaborn
+selenium
+statsmodels
+tenacity
+tqdm
+tsfresh
+ydata-profiling
