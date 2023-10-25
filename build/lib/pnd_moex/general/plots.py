@@ -1,8 +1,10 @@
-import pandas as pd
 import itertools
-from pnd_moex.util.other import find_all_sequences
+
+import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+
+from pnd_moex.util.other import find_all_sequences
 
 
 def visual_args(period: tuple, color: str, ymax: float) -> dict:

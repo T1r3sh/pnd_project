@@ -1,8 +1,9 @@
-import pandas as pd
 import numpy as np
-from adtk.detector import QuantileAD, PersistAD, VolatilityShiftAD
-from pnd_moex.util.other import find_all_sequences
+import pandas as pd
+from adtk.detector import PersistAD, QuantileAD, VolatilityShiftAD
 from pandas.tseries.offsets import BDay
+
+from pnd_moex.util.other import find_all_sequences
 
 
 def anomaly_detect(
@@ -74,6 +75,9 @@ def anomaly_news_markup_func(
     val_col: str = "CLOSE",
     mark_period: bool = True,
     na_mark: any = -1,
+    days_before: int = 7,
+    days_after: int = 5,
+    additional_indexing: bool = False,
 ) -> pd.DataFrame:
     """
     Mark data in DataFrame based on anomalies and news.
@@ -132,66 +136,16 @@ def anomaly_news_markup_func(
         if any(selected_df["anomaly"]):
             f_a_date = selected_df.loc[selected_df["anomaly"] == True].index[0]
             if mark_period:
-                st_date = f_a_date - BDay(7)
-                ed_date = f_a_date + BDay(5)
+                st_date = f_a_date - BDay(days_before)
+                ed_date = f_a_date + BDay(days_after)
                 freqed_df.loc[st_date:ed_date, "mark"] = 1
             else:
                 freqed_df.loc[f_a_date, "mark"] = 1
     freqed_df.drop(columns=["anomaly"], inplace=True)
+    if additional_indexing is not None:
+        mark_sequences = find_all_sequences(freqed_df["mark"])
+        for i, (st, ed) in enumerate(mark_sequences):
+            st_d = idx[st]
+            ed_d = idx[ed]
+            freqed_df.loc[st_d:ed_d, "new_index"] = i
     return freqed_df
-
-
-# def anomaly_detect(ts: pd.Series) -> pd.DataFrame:
-#     """
-#     Apply different methods of anomaly detection on the given time series data.
-
-#     :param ts: Time series data with a datetime/timestamp index.
-#     :type ts: pd.Series
-#     :return: DataFrame with columns representing different detection methods and the same datetime index.
-#     :rtype: pd.DataFrame
-#     """
-#     # Calculate shifted percentage values
-#     pct_lag1 = ts.pct_change()
-#     pct_lag2 = ts.shift(-1).pct_change()
-#     pct_lag3 = ts.shift(-2).pct_change()
-#     pct_over3 = ts.shift(-2).pct_change(periods=3)
-
-#     # Create a result DataFrame
-#     df = pd.DataFrame(index=ts.index)
-#     # Discover anomalies
-#     # Detect 3-day consecutive over 20% growth
-#     a_map = (np.array([pct_lag1, pct_lag2, pct_lag3]) > 0.2).all(axis=0)
-
-#     # Correct values for better visuals
-#     # The algorithm returns True for records where the 3-day growth rate is above 20%
-#     # To improve visualization, mark these three days as part of the pump
-#     ids = np.where(a_map == True)
-#     for a_id in ids[0]:
-#         a_map[a_id : a_id + 3] = True
-#     df["3over20"] = a_map
-
-#     # Apply a similar approach, but looking for growth over 80% over 3 days
-#     a_map = pct_over3 > 0.8
-#     ids = np.where(a_map == True)
-#     for a_id in ids[0]:
-#         a_map[a_id : a_id + 3] = True
-#     # tut nado sdelat' otbor
-#     df["80over3"] = a_map
-
-#     # Use ADTK tools to detect anomalies
-#     # Quantile AD
-#     q_ad = QuantileAD(high=0.99, low=0)
-#     df["quantile"] = q_ad.fit_detect(pct_lag1)
-
-#     # Persist AD
-#     persist_ad = PersistAD(30, c=5.0, side="positive")
-#     df["persist"] = persist_ad.fit_detect(ts)
-
-#     # Volatility AD
-#     volatility_shift_ad = VolatilityShiftAD(c=6.0, side="positive", window=30)
-#     df["volatility"] = volatility_shift_ad.fit_detect(ts)
-
-#     # Filling NA with False
-#     df.fillna(False, inplace=True)
-
-#     return df
