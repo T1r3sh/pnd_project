@@ -25,7 +25,9 @@ def get_security_names(token: str) -> tuple:
     return s_df.loc["SHORTNAME", "value"], s_df.loc["NAME", "value"]
 
 
-def get_smartlab_forum_urls(tokens: list[str], confidence_threshold: int = 90) -> list:
+def get_smartlab_forum_urls(
+    tokens: list[str], confidence_threshold: int = 90, alt_names: list[tuple] = None
+) -> list:
     """
     Get forum links from SmartLab for the given tokens, if available.
 
@@ -37,7 +39,8 @@ def get_smartlab_forum_urls(tokens: list[str], confidence_threshold: int = 90) -
     :rtype: list
     """
     # Get security names for further search
-    sec_names = [get_security_names(token) for token in tokens]
+    if not alt_names:
+        alt_names = [get_security_names(token) for token in tokens]
     # Initialize client connection
     base_url = "https://smart-lab.ru/"
     with httpx.Client(base_url=base_url) as client:
@@ -47,30 +50,28 @@ def get_smartlab_forum_urls(tokens: list[str], confidence_threshold: int = 90) -
 
         forum_token_endpoints = []
 
-        for token, (s_name, l_name) in zip(tokens, sec_names):
+        for token, (s_name, l_name) in zip(tokens, alt_names):
             # Extisting endpoints
             response = client.get(f"/forum/{token}")
             if response.status_code == 200:
                 forum_token_endpoints.append((token, f"/forum/{token}"))
-                continue
-            # Slight difference in short names
-            tmp = soup.find(
-                "a",
-                string=lambda x: x
-                and len(x) > 3
-                and fuzz.partial_ratio(x.lower(), s_name.lower())
-                >= confidence_threshold,
-            )
-            if tmp:
-                forum_token_endpoints.append((token, tmp.get("href")))
                 continue
             # Difference in full names
             tmp = soup.find(
                 "a",
                 string=lambda x: x
                 and len(x) > 5
-                and fuzz.partial_ratio(x.lower(), l_name.lower())
-                >= confidence_threshold,
+                and fuzz.ratio(x.lower(), l_name.lower()) >= confidence_threshold,
+            )
+            if tmp:
+                forum_token_endpoints.append((token, tmp.get("href")))
+                continue
+            # Slight difference in short names
+            tmp = soup.find(
+                "a",
+                string=lambda x: x
+                and len(x) > 3
+                and fuzz.ratio(x.lower(), s_name.lower()) >= confidence_threshold,
             )
             if tmp:
                 forum_token_endpoints.append((token, tmp.get("href")))
@@ -164,6 +165,7 @@ def get_smartlab_forum_data(
     chunk_size: int = 200,
     max_connections: int = 8,
     max_keepalive_connections: int = 4,
+    alt_names: any = None,
 ) -> pd.DataFrame:
     """
     Fetch all comment data for the given list of tokens asynchronously.
@@ -182,7 +184,18 @@ def get_smartlab_forum_data(
     raw_url_df_list = []
     base_url = "https://smart-lab.ru/"
     # Token forum pages
-    forum_token_endpoints = get_smartlab_forum_urls(tokens)
+    if alt_names is None:
+        forum_token_endpoints = get_smartlab_forum_urls(tokens)
+    elif type(alt_names) == list:
+        forum_token_endpoints = get_smartlab_forum_urls(tokens, alt_names=alt_names)
+    elif type(alt_names) == pd.DataFrame:
+        alt_names.set_index("token", inplace=True)
+        forum_token_endpoints = get_smartlab_forum_urls(
+            tokens,
+            alt_names=[tuple(alt_names.loc[token].tolist()[:2]) for token in tokens],
+        )
+    else:
+        raise TypeError("Invalid alt_names type")
     for token, url in forum_token_endpoints:
         if url is None:
             continue
@@ -198,6 +211,7 @@ def get_smartlab_forum_data(
             }
         )
         raw_url_df_list.append(url_df)
+
     # Unite all tokens into one DataFrame
     final_df = pd.concat(raw_url_df_list)
     links = final_df["url"].unique().tolist()
@@ -273,7 +287,7 @@ if __name__ == "__main__":
     # pnd_token_date_df = pd.read_parquet(
     #     os.path.join(datasets_folder_path, "pnd_token_date.parquet")
     # )
-    # tokens = pnd_token_date_df["token"].sample(5).unique().tolist()
+    # tokens = pnd_token_date_df["token"].unique().tolist()
 
     # print("execution started")
     # start_time = time.time()
@@ -284,5 +298,3 @@ if __name__ == "__main__":
 
     # print(f"time consumed {time.time() - start_time} seconds")
     # print(f_df.head())
-
-    
